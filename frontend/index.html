@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Legislativo</title>
+    <style>
+        body {
+            font-family: Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        .container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            transition: backdrop-filter 1s ease-in-out;
+        }
+
+        .setup-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: opacity 1s ease-in-out;
+            width: 600px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .party-box {
+            width: 140px;
+            height: 140px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            flex-direction: column;
+            text-align: center;
+            background-size: cover;
+            background-position: center;
+            border: 2px solid white;
+        }
+
+        .percentage-input {
+            margin-top: 5px;
+            width: 50px;
+            text-align: center;
+        }
+
+        #start-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .chat-box {
+            display: none;
+            width: 80%;
+            height: 150px;  
+            max-height: 200px;  
+            background: white;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            overflow-y: auto;  
+            font-size: 14px;
+            scrollbar-width: thin;  /
+            scrollbar-color: #888 #f1f1f1;  
+        }
+
+        .chat-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+</style>
+</head>
+<body>
+
+    <div class="container" id="setup-screen">
+        <div class="setup-box">
+            <h1>Simulador Legislativo</h1>
+            <div class="grid" id="party-grid"></div>
+            <div class="remaining" id="remaining-percentage">Restante: 100%</div>
+            <button id="start-button" disabled>Iniciar</button>
+        </div>
+    </div>
+
+    <div class="simulation-grid" id="simulation-grid"></div>
+    <div class="policy-politica" id="policy-politica"></div>
+    <div class="chat-box" id="chat-box">Congreso:</div>
+    <div class="final-decision" id="final-decision"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const startButton = document.getElementById("start-button");
+            const setupScreen = document.getElementById("setup-screen");
+            const simulationGrid = document.getElementById("simulation-grid");
+            const chatBox = document.getElementById("chat-box");
+            const policyPolitica = document.getElementById("policy-politica");
+            const partyGrid = document.getElementById("party-grid");
+
+            const parties = [
+                { name: "Red Party", color: "#D9534F", logo: "images/partido-rojo.png" },
+                { name: "Blue Party", color: "#5BC0DE", logo: "images/partido-azul.png" },
+                { name: "Green Party", color: "#5CB85C", logo: "images/partido-verde.png" },
+                { name: "Yellow Party", color: "#F0AD4E", logo: "images/partido-amarillo.png" },
+                { name: "Purple Party", color: "#9370DB", logo: "images/partido-morado.png" },
+                { name: "Orange Party", color: "#FF8C00", logo: "images/partido-naranja.png" },
+                { name: "Brown Party", color: "#8B4513", logo: "images/partido-cafe.png" },
+                { name: "Gray Party", color: "#A9A9A9", logo: "images/partido-gris.png" }
+            ];
+
+            function generatePartySelection() {
+                partyGrid.innerHTML = ""; 
+                parties.forEach((party, index) => {
+                    const box = document.createElement("div");
+                    box.className = "party-box";
+                    box.style.background = party.logo ? `url('${party.logo}') center/cover no-repeat` : party.color;
+                    box.innerHTML = `
+                        <div style="background: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px;">${party.name}</div>
+                        <input type="number" class="percentage-input" value="0" min="0" max="100">
+                    `;
+                    partyGrid.appendChild(box);
+                });
+
+                attachInputListeners();
+            }
+
+            function attachInputListeners() {
+                document.querySelectorAll(".percentage-input").forEach(input => {
+                    input.addEventListener("input", updateRemaining);
+                });
+            }
+
+            function updateRemaining() {
+                let total = [...document.querySelectorAll(".percentage-input")].reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+                document.getElementById("remaining-percentage").innerText = `Restante: ${100 - total}%`;
+                startButton.disabled = total !== 100;
+            }
+            function generateGrid(gridColors, gridVotes) {
+            simulationGrid.innerHTML = ""; // Clear previous grid
+
+            simulationGrid.style.display = "grid";
+            simulationGrid.style.gridTemplateColumns = "repeat(25, 20px)";
+            simulationGrid.style.gridTemplateRows = "repeat(20, 20px)";
+            simulationGrid.style.gap = "2px";
+
+            let groupedSquares = {};
+            
+            gridColors.forEach((color, index) => {
+                if (!groupedSquares[color]) {
+                    groupedSquares[color] = [];
+                }
+                groupedSquares[color].push(index);
+            });
+
+    Object.keys(groupedSquares).forEach(color => {
+        groupedSquares[color].forEach(index => {
+            let square = document.createElement("div");
+            square.className = "grid-square";
+            square.style.backgroundColor = color;
+            square.innerText = gridVotes[index]?.decision || "";  // Display votes
+            simulationGrid.appendChild(square);
+        });
+    });
+    }
+    function displayMessages(messages, callback) {
+    console.log("Displaying messages:", messages);
+    chatBox.style.display = "block";
+    chatBox.innerHTML = "<strong>Congreso:</strong><br>";
+    let index = 0;
+
+    function showMessage() {
+        if (index < messages.length) {
+            let msg = messages[index];
+            let messageElement = document.createElement("p");
+            messageElement.innerHTML = `<strong style="color:${msg.color}">${msg.party}:</strong> ${msg.message}`;
+            chatBox.appendChild(messageElement);
+            index++;
+            setTimeout(showMessage, 2000);
+        } else {
+            callback(); // Move to next phase
+        }
+    }
+    showMessage();
+}
+            function startSimulation() {
+                startButton.disabled = true;
+
+            let percentages = [...document.querySelectorAll(".percentage-input")].map(input => parseFloat(input.value) || 0);
+            console.log("Starting simulation, sending percentages:", percentages);
+
+            fetch('http://127.0.0.1:5000/generate_simulation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ percentages: percentages })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(errText => { 
+                        console.error("❌ Backend Error:", errText);  
+                        throw new Error("Backend Error: " + errText); 
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("✅ Data received:", data);
+
+                setupScreen.style.display = "none"; 
+                simulationGrid.style.display = "grid";
+
+                policyPolitica.innerHTML = `<strong>Policy:</strong> ${data.politica}`;
+
+                generateGrid(data.grid_colors, data.grid_votes);
+                displayMessages(data.messages, () => displayFinalResults(data.success));
+            })
+            .catch(error => console.error("❌ Fetch error:", error.message));
+}
+
+            function displayFinalResults(success) {
+            const finalDecision = document.getElementById("final-decision");
+            finalDecision.innerText = success ? "✅ Policy Approved!" : "❌ Policy Rejected";
+            finalDecision.style.color = success ? "green" : "red";
+            finalDecision.style.display = "block";
+}
+            startButton.addEventListener("click", startSimulation);
+            generatePartySelection();
+        });
+    </script>
+</body>
+</html>

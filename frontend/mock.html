@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Legislativo</title>
+    <style>
+        body {
+            font-family: Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: rgba(245, 245, 220, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        .container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            transition: backdrop-filter 1s ease-in-out;
+        }
+
+        .setup-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: opacity 1s ease-in-out;
+            width: 600px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .party-box {
+            width: 140px;
+            height: 140px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            flex-direction: column;
+            text-align: center;
+            background-size: cover;
+            background-position: center;
+            border: 2px solid white;
+        }
+
+        .percentage-input {
+            margin-top: 5px;
+            width: 50px;
+            text-align: center;
+        }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 220px;
+            z-index: 10;
+        }
+
+        .party-box.active .dropdown {
+            display: block;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .slider-container label {
+            width: 80px;
+            font-size: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="setup-screen">
+        <div class="setup-box">
+            <h1>Simulador Legislativo</h1>
+            <div class="grid" id="party-grid"></div>
+            <div class="remaining" id="remaining-percentage">Restante: 100%</div>
+            <button onclick="startSimulation()">Iniciar</button>
+        </div>
+    </div>
+
+    <script>
+        function adjustSaturation(hex, percent) {
+            let num = parseInt(hex.slice(1), 16),
+                r = (num >> 16),
+                g = ((num >> 8) & 0x00FF),
+                b = (num & 0x0000FF);
+
+            // Reduce saturation by blending with white
+            r = Math.floor(r + (255 - r) * (percent / 100));
+            g = Math.floor(g + (255 - g) * (percent / 100));
+            b = Math.floor(b + (255 - b) * (percent / 100));
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const parties = [
+                { name: "Red Party", color: "#D9534F", logo: "images/partido-rojo.png", description: "A progressive party advocating for social justice.", beliefs: { taxes: 5, healthcare: 3, environment: 4, military: -3, business: -4, social: 2, education: 3, freedom: -2 } },
+                { name: "Blue Party", color: "#5BC0DE", logo: "images/partido-azul.png", description: "A conservative party focused on free markets.", beliefs: { taxes: -3, healthcare: -5, environment: -2, military: 4, business: 5, social: -4, education: -3, freedom: 3 } },
+                { name: "Green Party", color: "#5CB85C", logo: "images/partido-verde.png", description: "A party prioritizing environmental policies.", beliefs: { taxes: 2, healthcare: 5, environment: 5, military: -4, business: -3, social: 4, education: 4, freedom: -3 } },
+                { name: "Yellow Party", color: "#F0AD4E", logo: "images/partido-amarillo.png", description: "A centrist party balancing economy and social policies.", beliefs: { taxes: -1, healthcare: -2, environment: 2, military: 1, business: 2, social: 0, education: 1, freedom: 2 } },
+                { name: "Purple Party", color: "#9370DB", logo: "images/partido-morado.png", description: "A socially liberal, economically moderate party.", beliefs: { taxes: 1, healthcare: 3, environment: -1, military: 2, business: 1, social: 3, education: 2, freedom: 1 } },
+                { name: "Orange Party", color: "#FF8C00", logo: "images/partido-naranja.png", description: "A libertarian-leaning party.", beliefs: { taxes: 0, healthcare: -1, environment: -3, military: 3, business: 4, social: -2, education: 0, freedom: 4 } },
+                { name: "Brown Party", color: "#8B4513", logo: "images/partido-cafe.png", description: "A protectionist party focused on national sovereignty.", beliefs: { taxes: 3, healthcare: 2, environment: -2, military: -3, business: -1, social: 1, education: 3, freedom: -4 } },
+                { name: "Gray Party", color: "#A9A9A9", logo: "images/partido-gris.png", description: "A technocratic party supporting pragmatic policies.", beliefs: { taxes: -2, healthcare: -3, environment: 1, military: 4, business: 2, social: -1, education: -2, freedom: 5 } }
+            ];
+
+            const policyLabels = ["Taxes", "Healthcare", "Environment", "Military", "Business", "Social", "Education", "Freedom"];
+            const grid = document.getElementById("party-grid");
+
+            parties.forEach((party, index) => {
+                const box = document.createElement("div");
+                box.className = "party-box";
+                box.style.backgroundImage = `url('${party.logo}')`;
+                box.innerHTML = `
+                    <div style="background: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px;">${party.name}</div>
+                    <input type="number" class="percentage-input" id="percentage-${index}" value="0" min="0" max="100" onchange="updateRemaining()">
+                    <div class="dropdown" style="background: ${adjustSaturation(party.color, 50)}; color: black;">
+                        <div style="margin-bottom: 5px; font-size: 12px; font-weight: bold;">${party.description}</div>
+                        ${policyLabels.map((label, i) => `
+                            <div class="slider-container">
+                                <label>${label}</label>
+                                <input type="range" min="-5" max="5" value="${Object.values(party.beliefs)[i]}" disabled>
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+
+                box.addEventListener("click", function () {
+                    document.querySelectorAll(".party-box").forEach(b => b.classList.remove("active"));
+                    box.classList.toggle("active");
+                });
+
+                grid.appendChild(box);
+            });
+        });
+
+    </script>
+
+</body>
+</html>
